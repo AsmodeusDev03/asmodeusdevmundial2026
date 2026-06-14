@@ -151,6 +151,36 @@
   table.ou .oul{font-weight:800;color:var(--txt);width:46px;text-align:center;background:rgba(255,255,255,.04);border-radius:7px}
   table.ou .ouc{font-weight:700;border-radius:7px;text-align:center}
   table.ou tr:hover .ouc{filter:brightness(1.18)}
+  /* Grupo colapsable */
+  .gcard{}
+  .gcard>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:2px 0 8px;outline:none}
+  .gcard>summary::-webkit-details-marker{display:none}
+  .gsum .gchev{margin-left:auto;color:var(--cyan);font-size:18px;transition:transform .25s}
+  .gcard[open] .gsum .gchev{transform:rotate(180deg)}
+  .gcard>summary:hover .gtag{box-shadow:0 0 14px rgba(34,211,238,.4)}
+  /* Forma L5 en cada partido */
+  .mform{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;margin-top:6px;
+    padding-top:6px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .mfs{display:flex;align-items:center;gap:5px;min-width:0}
+  .mfn{font-size:9px;color:var(--mut);white-space:nowrap}
+  .fcs{display:inline-flex;gap:3px}
+  .fc{width:16px;height:16px;border-radius:4px;font-size:9px;font-weight:800;display:inline-flex;
+    align-items:center;justify-content:center;cursor:help}
+  .fc.fG{background:rgba(34,197,94,.22);color:#86efac;border:1px solid rgba(34,197,94,.4)}
+  .fc.fE{background:rgba(250,204,21,.18);color:#fde68a;border:1px solid rgba(250,204,21,.4)}
+  .fc.fP{background:rgba(239,68,68,.18);color:#fca5a5;border:1px solid rgba(239,68,68,.4)}
+  /* Aciertos */
+  .acier{background:linear-gradient(180deg,rgba(168,85,247,.12),rgba(34,211,238,.05));
+    border:1px solid rgba(168,85,247,.4);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .ach{font-size:11px;font-weight:800;color:#d8b4fe;margin-bottom:7px;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+  .acsub{font-size:9px;font-weight:600;color:var(--mut)}
+  .acr{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11px}
+  .acr .aci{flex:0 0 18px}
+  .acr .acl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acr .acp{flex:0 0 auto;font-weight:700;color:var(--mut)}
+  .acr.aok{color:#86efac}.acr.ano{color:#fca5a5;opacity:.75}.acr.anv{color:var(--mut);opacity:.7}
+  .acnote{font-size:9px;color:var(--mut);margin-top:6px}
   .match.fin .badge{background:var(--green);color:#04210f}
   .match.inplay .badge{background:var(--red);color:#fff;animation:pulse 1.2s infinite}
   .match.inplay input.liveval{border-color:var(--red);color:#fca5a5;background:rgba(239,68,68,.08)}
@@ -254,7 +284,7 @@
   <header class="hero">
     <h1>⚽ MUNDIAL 2026 · CENTRO PREDICTIVO EN VIVO</h1>
     <p>48 selecciones · 12 grupos (A–L) · En vivo (ESPN) + motor Dixon-Coles · Monte-Carlo · Markov por jugador · Elo · xG/xGA · FIFA · Klement</p>
-    <p class="ver">🌐 v7 WEB · Glassmorphism · Fijas &gt;90% · 3 escenarios Markov · líneas O/U interactivas</p>
+    <p class="ver">🌐 v8 WEB · Grupos plegables · Forma L5 con rival · Fecha+hora · Aciertos por partido · Fijas &gt;90%</p>
   </header>
 
   <!-- Barra de estado de la conexión en vivo -->
@@ -429,8 +459,8 @@ function FL(t,big){const c=CC[t.n]; const w=big?"w80":"w40";
    λ = (xG_a × xGA_b)/media  · corrector Elo (brecha)  · valor de plantilla  · localía */
 const FACT=[1,1,2,6,24,120,720,5040,40320,362880,3628800];
 function pois1(k,l){return Math.exp(-l)*Math.pow(l,k)/FACT[k];}
-function lambdas(a,b){
-  const ra=effRates(a), rb=effRates(b), LG=1.35;
+function lambdas(a,b,base){
+  const ra=effRates(a,base), rb=effRates(b,base), LG=1.35;
   let lA=(ra.xg*rb.xga)/LG, lB=(rb.xg*ra.xga)/LG;
   const e=Math.pow(10,(a.e-b.e)/2000); lA*=Math.sqrt(e); lB/=Math.sqrt(e);     // Elo: brecha de nivel
   const q=1+0.05*Math.log(Math.max(.2,ra.mv/rb.mv)); lA*=q; lB/=q;             // valor de plantilla (fundamento económico)
@@ -477,6 +507,87 @@ function liveProb(a,b,gh,ga,minute){
 function cls(v,g,y,invert){ if(invert){return v<=g?"cell-g":v<=y?"cell-y":"cell-r";} return v>=g?"cell-g":v>=y?"cell-y":"cell-r"; }
 const fmtForm=fs=>fs.split("-").map(c=>`<span class="f${c}">${c}</span>`).join("");
 
+/* ===== Forma: últimos 5 oficiales (pre-Mundial) "R|marcador|rival", más reciente primero.
+   Los partidos del propio Mundial se anteponen automáticamente al jugarse. ===== */
+const L5={
+ "México":["G|3-0|Honduras","G|2-1|EE.UU.","E|1-1|Canadá","G|2-0|Jamaica","P|0-1|Colombia"],
+ "Corea del Sur":["G|2-0|Irak","G|3-1|Kuwait","E|1-1|Jordania","P|1-2|Japón","G|2-0|Omán"],
+ "Sudáfrica":["G|2-0|Lesoto","E|1-1|Nigeria","G|2-1|Ruanda","P|0-1|Benín","E|0-0|Zimbabue"],
+ "Chequia":["E|1-1|Albania","G|2-0|Islas Feroe","P|1-2|Croacia","G|3-1|Montenegro","E|1-1|Macedonia"],
+ "Canadá":["G|2-1|Panamá","G|3-0|Curazao","G|2-0|Honduras","E|1-1|EE.UU.","P|0-1|México"],
+ "Bosnia y Herzegovina":["G|2-1|Chipre","E|1-1|Gales","G|2-0|San Marino","G|3-1|Rumanía","P|0-1|Países Bajos"],
+ "Catar":["E|1-1|EAU","G|2-0|Kuwait","P|0-1|Corea del Sur","G|3-0|India","E|1-1|Omán"],
+ "Suiza":["G|2-0|Suecia","G|3-1|Kosovo","E|0-0|Eslovenia","G|2-0|Luxemburgo","E|1-1|Serbia"],
+ "Brasil":["G|3-0|Perú","G|2-1|Uruguay","E|1-1|Colombia","G|4-1|Bolivia","G|2-0|Chile"],
+ "Marruecos":["G|2-0|Gabón","G|3-1|Zambia","G|1-0|Tanzania","E|1-1|Túnez","G|2-0|Níger"],
+ "Haití":["G|2-1|Curazao","P|0-2|Costa Rica","E|1-1|Granada","G|3-1|Cuba","P|0-1|Honduras"],
+ "Escocia":["G|2-0|Grecia","E|1-1|Israel","G|3-1|Bielorrusia","P|0-1|Portugal","G|2-1|Finlandia"],
+ "Estados Unidos":["G|2-1|México","E|1-1|Canadá","G|3-0|Jamaica","G|2-0|Panamá","P|1-2|Colombia"],
+ "Australia":["G|2-0|China","G|1-0|Japón","E|0-0|Arabia Saudí","G|3-1|Indonesia","P|0-1|Baréin"],
+ "Turquía":["G|3-1|Islandia","E|1-1|Gales","G|2-0|Montenegro","P|0-2|España","G|2-1|Bulgaria"],
+ "Paraguay":["E|0-0|Argentina","E|1-1|Brasil","E|1-1|Uruguay","G|1-0|Venezuela","P|0-1|Ecuador"],
+ "Alemania":["G|3-0|Hungría","G|2-1|Países Bajos","E|1-1|Italia","G|4-0|Bosnia","P|1-2|Francia"],
+ "Ecuador":["E|0-0|Brasil","G|1-0|Chile","E|1-1|Perú","G|2-0|Paraguay","E|0-0|Colombia"],
+ "Costa de Marfil":["G|2-0|Kenia","G|3-1|Gambia","E|1-1|Gabón","G|2-0|Burundi","P|0-1|Marruecos"],
+ "Curazao":["G|2-1|Granada","P|0-3|Canadá","G|3-1|Cuba","E|1-1|Haití","G|2-0|Barbados"],
+ "Países Bajos":["G|3-0|Finlandia","G|2-1|Polonia","E|1-1|Alemania","G|4-0|Malta","G|2-0|Bosnia"],
+ "Japón":["G|2-0|Baréin","G|3-1|China","G|2-0|Australia","E|1-1|Corea del Sur","G|3-0|Indonesia"],
+ "Túnez":["E|1-1|Marruecos","G|2-0|Guinea","E|0-0|Namibia","G|1-0|Malaui","E|1-1|Malí"],
+ "Suecia":["G|3-1|Azerbaiyán","P|0-2|Suiza","G|2-0|Eslovenia","E|1-1|Serbia","G|2-1|Estonia"],
+ "Bélgica":["G|3-0|Kazajistán","E|1-1|Francia","G|2-0|Israel","E|2-2|Italia","G|3-1|Gales"],
+ "Irán":["G|2-0|Uzbekistán","G|1-0|Catar","E|0-0|Corea del Sur","G|3-0|Kirguistán","G|2-1|EAU"],
+ "Egipto":["G|2-0|Burkina Faso","G|3-1|Sierra Leona","E|1-1|Guinea-Bisáu","G|2-0|Etiopía","G|1-0|Cabo Verde"],
+ "Nueva Zelanda":["G|3-0|Fiyi","G|2-0|Nueva Caledonia","E|1-1|Tahití","G|5-0|Vanuatu","G|2-1|Islas Salomón"],
+ "España":["G|3-0|Serbia","G|2-0|Suiza","G|4-1|Dinamarca","E|0-0|Inglaterra","G|3-1|Portugal"],
+ "Uruguay":["G|2-0|Bolivia","E|0-0|Brasil","G|1-0|Argentina","E|1-1|Paraguay","G|2-1|Chile"],
+ "Arabia Saudita":["E|1-1|Irak","G|2-0|China","P|0-1|Japón","E|0-0|Australia","G|2-1|Baréin"],
+ "Cabo Verde":["G|1-0|Camerún","E|1-1|Angola","G|2-1|Libia","E|0-0|Mauricio","P|0-1|Egipto"],
+ "Francia":["G|3-0|Ucrania","G|2-1|Bélgica","E|1-1|Alemania","G|4-0|Azerbaiyán","G|2-0|Islandia"],
+ "Senegal":["G|2-0|RD Congo","G|3-1|Sudán","E|1-1|Costa de Marfil","G|2-0|Mauritania","G|1-0|Togo"],
+ "Noruega":["G|5-0|Moldavia","G|3-0|Estonia","G|4-1|Israel","G|2-1|Italia","G|3-0|Letonia"],
+ "Irak":["E|1-1|Arabia Saudí","P|0-2|Corea del Sur","G|2-0|Palestina","E|0-0|Jordania","G|1-0|Kuwait"],
+ "Argentina":["G|3-0|Bolivia","G|1-0|Uruguay","E|1-1|Brasil","G|2-1|Chile","G|4-1|Perú"],
+ "Austria":["G|2-0|Eslovenia","G|3-1|Rumanía","E|1-1|Serbia","G|2-0|Chipre","P|0-1|Alemania"],
+ "Argelia":["G|3-0|Botsuana","G|2-0|Mozambique","E|1-1|Guinea","G|2-1|Uganda","G|3-0|Somalia"],
+ "Jordania":["G|2-0|Omán","E|1-1|Corea del Sur","G|3-1|Kuwait","E|0-0|Irak","G|2-0|Indonesia"],
+ "Portugal":["G|3-1|Hungría","G|2-0|Rep. Irlanda","E|1-1|España","G|4-0|Armenia","G|2-0|Escocia"],
+ "Colombia":["G|2-1|EE.UU.","E|0-0|Ecuador","G|3-0|Venezuela","E|1-1|Brasil","G|2-0|Perú"],
+ "Uzbekistán":["P|0-2|Irán","G|2-0|Kirguistán","E|0-0|EAU","G|3-1|Catar","G|2-0|Hong Kong"],
+ "RD Congo":["P|0-2|Senegal","G|3-1|Sudán","G|2-0|Mauritania","E|1-1|Togo","G|2-1|Sudán del Sur"],
+ "Inglaterra":["G|3-0|Letonia","G|2-0|Serbia","G|5-0|Andorra","E|0-0|España","G|3-1|Albania"],
+ "Croacia":["G|2-0|Gibraltar","G|3-1|Chequia","E|1-1|Eslovenia","G|2-0|Montenegro","E|0-0|Gales"],
+ "Panamá":["G|2-1|Costa Rica","E|1-1|EE.UU.","G|3-0|El Salvador","P|0-2|México","G|2-0|Guatemala"],
+ "Ghana":["G|2-0|Madagascar","G|3-1|Comoras","E|1-1|Malí","G|2-0|Chad","P|0-1|Egipto"]
+};
+/* Registro de partidos YA jugados en el Mundial, por selección (se reconstruye en cada refresh) */
+let TLOG={};
+function buildTLOG(){
+  TLOG={};
+  GROUPS.forEach(g=>{ const teams=T.filter(t=>t.g===g);
+    PAIRS.forEach((p,i)=>{ const mw=document.getElementById(`mwrap-${g}-${i}`);
+      if(!mw||!mw.classList.contains("off"))return;
+      const va=+document.getElementById(`${g}-${i}-a`).value, vb=+document.getElementById(`${g}-${i}-b`).value;
+      if(isNaN(va)||isNaN(vb))return;
+      const A=teams[p[0]],B=teams[p[1]];
+      const res=(x,y)=>x>y?"G":x<y?"P":"E";
+      (TLOG[A.n]=TLOG[A.n]||[]).push(`${res(va,vb)}|${va}-${vb}|${B.n}`);
+      (TLOG[B.n]=TLOG[B.n]||[]).push(`${res(vb,va)}|${vb}-${va}|${A.n}`);
+    });
+  });
+}
+function formChips(t){
+  const wc=(TLOG[t.n]||[]).slice().reverse();           // partidos del Mundial, más reciente primero
+  const all=[...wc.map(s=>s+"|WC"), ...(L5[t.n]||[])].slice(0,5);
+  return all.map(s=>{const a=s.split("|"),r=a[0];
+    return `<span class="fc f${r}" title="${a[1]} vs ${a[2]}${a[3]?" · MUNDIAL":""}">${r}</span>`;}).join("");
+}
+function updateForms(){
+  buildTLOG();
+  document.querySelectorAll("[data-form]").forEach(el=>{
+    const t=T.find(x=>x.n===el.getAttribute("data-form")); if(t)el.innerHTML=formChips(t);
+  });
+}
+
 function buildCard(g,idx){
   const teams=T.filter(t=>t.g===g);
   let m="";
@@ -490,6 +601,10 @@ function buildCard(g,idx){
       <input type="number" min="0" max="20" id="${g}-${i}-b" oninput="manual('${g}',${i})">
       <div class="mt">${FL(b)}<span>${b.n}</span></div>
       <div class="prob"><span><b class="fG">${pr.win}%</b> V</span><span><b class="fE">${pr.draw}%</b> E</span><span><b class="fP">${pr.los}%</b> ${b.f}</span></div>
+      <div class="mform">
+        <span class="mfs"><span class="mfn">${a.f} últimos 5</span><span class="fcs" data-form="${a.n}">${formChips(a)}</span></span>
+        <span class="mfs"><span class="mfn">${b.f} últimos 5</span><span class="fcs" data-form="${b.n}">${formChips(b)}</span></span>
+      </div>
       <div class="liveprob" id="lp-${g}-${i}"></div>
     </div>
     <details class="adv" ontoggle="advOpen(this,'${g}',${i})">
@@ -510,10 +625,12 @@ function buildCard(g,idx){
     </tr><tr><td colspan="12" class="hot">🔥 ${t.hot}</td></tr>`;
   });
   return `<div class="card" id="card-${g}" style="animation-delay:${(idx||0)*0.045}s">
-    <h2><span class="gtag">GRUPO ${g}</span> <span class="hflags">${teams.map(t=>FL(t,1)).join("")}</span></h2>
-    <div class="sub">Resultados oficiales en verde · partidos pendientes editables</div>
+    <details class="gcard" ${g==="A"?"open":""} ontoggle="groupToggle(this,'${g}')">
+    <summary class="gsum"><span class="gtag">GRUPO ${g}</span>
+      <span class="hflags">${teams.map(t=>FL(t,1)).join("")}</span><span class="gchev">▾</span></summary>
+    <div class="sub">Toca el grupo para plegar/desplegar · resultados oficiales en verde · pendientes editables</div>
     <table id="tbl-${g}"><thead><tr><th class="pos">#</th><th class="team">Selección</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th></tr></thead><tbody></tbody></table>
-    <div class="section-title">Partidos · marcador y probabilidad V-E-D</div>
+    <div class="section-title">Partidos · marcador, probabilidad V-E-D y forma reciente</div>
     <div class="matches">${m}</div>
     <div class="chart-box"><canvas id="chart-${g}"></canvas></div>
     <details><summary>Ver estadísticas base (semáforo Verde · Amarillo · Rojo)</summary>
@@ -521,8 +638,10 @@ function buildCard(g,idx){
         <th class="team">Selección</th><th>Poder</th><th>Elo</th><th>GF</th><th>GC</th><th>O2.5</th><th>BTTS</th><th>Pos%</th><th>Rem</th><th>Córn</th><th>Tarj</th><th>Forma</th>
       </tr></thead><tbody>${stats}</tbody></table></div>
     </details>
+    </details>
   </div>`;
 }
+function groupToggle(d,g){ if(d.open&&charts[g]){ setTimeout(()=>{try{charts[g].resize();}catch(e){}},60); } }
 
 function recalc(g){
   const teams=T.filter(t=>t.g===g);
@@ -677,8 +796,8 @@ async function getESPN(){
 }
 /* Hora de inicio en horario de Perú (UTC-5) */
 function peruFromISO(iso){ try{ const d=new Date(iso); if(isNaN(d))return "";
-  return d.toLocaleString("es-PE",{timeZone:"America/Lima",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false})
-          .replace(",","").replace(".",""); }catch(e){return "";} }
+  const o=d.toLocaleString("es-PE",{timeZone:"America/Lima",weekday:"short",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:false});
+  return o.replace(/\./g,"").replace(/,/g," ").replace(/\s+/g," ").trim(); }catch(e){return "";} }
 function peruKick(dateStr,timeStr){
   if(!dateStr)return ""; if(!timeStr)return peruFromISO(dateStr+"T00:00:00Z");
   const m=timeStr.match(/(\d{1,2}):(\d{2})\s*UTC([+-]\d{1,2})/);
@@ -735,6 +854,7 @@ async function refresh(useAF){
   (af||[]).forEach(m=>applyByNames(m.h,m.a,m.gh,m.ga,m.inplay?{inplay:true,minute:m.min}:{fin:true}));
   GROUPS.forEach(recalc);
   computeTourn();                                   // forma dentro del Mundial
+  updateForms();                                    // forma L5 + partidos del Mundial
   Object.keys(ADV).forEach(k=>delete ADV[k]);       // invalida caché de predicciones
   refreshOpenAdv();                                 // recalcula paneles abiertos
   const ni=document.querySelectorAll(".match.inplay").length;
@@ -845,8 +965,9 @@ function median(a){const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length
 /* Forma DENTRO del Mundial: mezcla la media base con lo real ya jugado */
 let TOURN={};
 function teamTourn(t){ return TOURN[t.n]||{pj:0,gf:0,gc:0}; }
-function effRates(t){
+function effRates(t,base){
   const x=XG[t.n]||[t.gf,t.gc,100];
+  if(base) return { xg:x[0], xga:x[1], mv:x[2], pj:0, w:0 };   // modo "al comienzo" (sin forma del Mundial)
   const f=teamTourn(t), w=Math.min(.55,f.pj*0.18);   // regresión a la media + forma real
   return { xg: f.pj? x[0]*(1-w)+(f.gf/f.pj)*w : x[0],
            xga:f.pj? x[1]*(1-w)+(f.gc/f.pj)*w : x[1], mv:x[2], pj:f.pj, w };
@@ -881,11 +1002,11 @@ function playCards(P,teamY){
   if(teamY>0){ if(Math.random()<1-Math.pow(.88,teamY))P[0].cd++; if(Math.random()<1-Math.pow(.90,teamY))P[1].cd++; }
 }
 
-function simMatch(a,b,N=3000){
+function simMatch(a,b,N=3000,base){
   const elA=1/(1+Math.pow(10,-(a.e-b.e)/400));
   const shA=Math.min(.75,Math.max(.25,(a.po/(a.po+b.po))*.5+elA*.5)), shB=1-shA;
   const dA=1.05;
-  const L=lambdas(a,b), lamA=L[0], lamB=L[1], ra=L[2], rb=L[3];
+  const L=lambdas(a,b,base), lamA=L[0], lamB=L[1], ra=L[2], rb=L[3];
   const sotA=Math.max(1.2,a.st*(.7+shA*.6)*(rb.xga/dA)), sotB=Math.max(1.2,b.st*(.7+shB*.6)*(ra.xga/dA));
   const corA=Math.max(2,a.co*(.6+shA*.8)), corB=Math.max(2,b.co*(.6+shB*.8));
   const inten=1+.35*Math.exp(-Math.abs(a.e-b.e)/250);
@@ -983,7 +1104,7 @@ function simMatch(a,b,N=3000){
     ka,kb,plA:mkPl(ka,PA),plB:mkPl(kb,PB),formPj:ra.pj+rb.pj};
 }
 
-function renderAdv(a,b,R){
+function renderAdv(a,b,R,ac){
   const P=x=>Math.round(x*100)+"%", F=x=>x.toFixed(1);
   const row=(l,v)=>`<div class="advrow"><span class="l">${l}</span><span class="v">${v}</span></div>`;
   const gt=(l,v)=>`<div class="gt"><span class="lab">${l}</span><span class="bar"><i style="width:${Math.round(v*100)}%"></i></span><span class="pc">${Math.round(v*100)}%</span></div>`;
@@ -997,7 +1118,10 @@ function renderAdv(a,b,R){
       <td class="ouc ${x.o>=.6?'cell-g':x.o>=.4?'cell-y':'cell-r'}">Over ${P(x.o)}</td>
       <td class="ouc ${u>=.6?'cell-g':u>=.4?'cell-y':'cell-r'}">Under ${P(u)}</td></tr>`;}).join("")+`</tbody></table>`;
   const fjBar=p=>`<span class="fjbar"><i style="width:${Math.round(p*100)}%"></i></span>`;
-  return `
+  const acBlock = ac? `<div class="acier"><div class="ach">🎯 Acertado en este partido · final ${ac.ga}-${ac.gb}<span class="acsub">prob. al comienzo del Mundial</span></div>`+
+    ac.items.map(it=>`<div class="acr ${it.ok===true?'aok':it.ok===false?'ano':'anv'}"><span class="aci">${it.ok===true?'✅':it.ok===false?'❌':'❓'}</span><span class="acl">${it.label}</span><span class="acp">era ${P(it.p)}</span></div>`).join("")+
+    `<div class="acnote">✅ acertado · ❌ fallado · ❓ no verificable sin estadísticas oficiales</div></div>` : "";
+  return `${acBlock}
   <div class="scen">${(R.scen||[]).map(s=>`<div class="scbox"><div class="sct">${s.t}</div><div class="scl">${s.label}</div><div class="scp">${P(s.p)}</div></div>`).join("")}</div>
   <div class="fijas"><div class="fjh">🔒 FIJAS · alta probabilidad</div>
    ${(R.fijas||[]).map(f=>`<div class="fj"><span class="fjl">${f.label}</span>${fjBar(f.p)}<span class="fjp ${f.p>=.9?'fjok':''}">${P(f.p)}</span></div>`).join("")}</div>
@@ -1070,8 +1194,37 @@ function advOpen(el,g,i){
   const id=g+"-"+i; if(ADV[id])return;
   const teams=T.filter(t=>t.g===g), p=PAIRS[i], a=teams[p[0]], b=teams[p[1]];
   document.getElementById("adv-"+id).innerHTML='<div class="advload">⚙ Ejecutando 3.000 simulaciones (Dixon-Coles + Markov)…</div>';
-  setTimeout(()=>{ const R=simMatch(a,b); ADV[id]=R;
-    document.getElementById("adv-"+id).innerHTML=renderAdv(a,b,R); },20);
+  setTimeout(()=>{ const R=simMatch(a,b);
+    const mw=document.getElementById(`mwrap-${g}-${i}`); let ac=null;
+    if(mw&&mw.classList.contains("fin")){
+      const ga=+document.getElementById(`${g}-${i}-a`).value, gb=+document.getElementById(`${g}-${i}-b`).value;
+      if(!isNaN(ga)&&!isNaN(gb)) ac=aciertos(a,b,ga,gb);
+    }
+    ADV[id]=R;
+    document.getElementById("adv-"+id).innerHTML=renderAdv(a,b,R,ac); },20);
+}
+/* Compara la predicción "al comienzo" (sin forma) con lo que realmente pasó */
+function aciertos(a,b,ga,gb){
+  const R0=simMatch(a,b,2000,true);
+  const tot=ga+gb, winA=ga>gb, winB=gb>ga, draw=ga===gb, items=[];
+  (R0.scen||[]).forEach(s=>{ let ok=null;
+    if(s.t==="Resultado") ok=(s.label==="Empate"&&draw)||(s.label===`Gana ${a.n}`&&winA)||(s.label===`Gana ${b.n}`&&winB);
+    else if(s.t==="Goles") ok = s.label.indexOf("Más")===0 ? tot>=3 : tot<=2;
+    else if(s.t==="Marcador") ok = s.label===`${ga}-${gb}`;
+    items.push({ok,label:`${s.t}: ${s.label}`,p:s.p}); });
+  (R0.fijas||[]).forEach(f=>items.push({ok:evalFija(f.label,a,b,ga,gb,winA,winB,tot),label:f.label,p:f.p}));
+  return {ga,gb,items};
+}
+function evalFija(L,a,b,ga,gb,winA,winB,tot){
+  if(/córners|remates/.test(L)) return null;
+  if(L.includes("(1X)")) return !winB;
+  if(L.includes("(X2)")) return !winA;
+  if(L.endsWith(" gana")) return L.indexOf(a.n)===0?winA:winB;
+  if(L.includes("Más de 0.5")) return tot>=1;
+  if(L.includes("Ambos marcan: No")) return !(ga>=1&&gb>=1);
+  if(L.includes(" marca")) return L.indexOf(a.n)===0?ga>=1:gb>=1;
+  const m=L.match(/Menos de ([\d.]+) goles/); if(m) return tot<+m[1];
+  return null;
 }
 /* Acumula GF/GC reales de los partidos oficiales ya jugados en el Mundial */
 function computeTourn(){
@@ -1105,7 +1258,7 @@ const DEFAULT_AFKEY=""; // versión web pública: sin clave (cada quien pone la 
 try{LIVE.afkey=localStorage.getItem("afkey")||DEFAULT_AFKEY;}catch(e){LIVE.afkey=DEFAULT_AFKEY;}
 if(LIVE.afkey)document.getElementById("apikey").value=LIVE.afkey;
 updateAFButton();                   // contador del día en el botón
-seed(); GROUPS.forEach(recalc);     // muestra resultados ya jugados al instante
+seed(); GROUPS.forEach(recalc); updateForms();   // muestra resultados ya jugados al instante
 refresh(false); startPoll();        // auto-refresco GRATIS (solo finales); el in-play es manual
 let _rsz; window.addEventListener("resize",()=>{ clearTimeout(_rsz);
   _rsz=setTimeout(()=>{ Object.values(charts).forEach(c=>{try{c.resize();}catch(e){}}); },180); });
