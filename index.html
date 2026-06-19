@@ -309,6 +309,10 @@
   .r3row.r3hit{background:rgba(34,197,94,.12);border-radius:6px}
   .r3row.r3hit .r3cum{color:#86efac;font-weight:800}
   .r3comb{font-size:12px;color:var(--mut);margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}.r3comb b{color:#86efac}
+  .r3row.r3win{background:rgba(34,197,94,.22);border:1px solid rgba(34,197,94,.55);border-radius:6px}
+  .r3res{font-size:12px;font-weight:700;margin-bottom:8px;padding:7px 10px;border-radius:9px}
+  .r3res.ok{background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.45);color:#86efac}
+  .r3res.no{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
   /* ===== Pulido premium v18 ===== */
   .wrap{max-width:1280px}
   header.hero{margin-bottom:14px;padding-bottom:6px}
@@ -519,7 +523,7 @@
   <header class="hero">
     <h1>🦁 LIMERIUN BET · MUNDIAL 2026</h1>
     <p>48 selecciones · 12 grupos · Dixon-Coles · Monte-Carlo · Markov · Elo · xG/xGA · valor de mercado · eslabón débil (Numbers Game) · varianza del fútbol</p>
-    <p class="ver">🌐 v20 WEB · Gráficos (radar · xG · heatmap · donut) + alineaciones con foto y tarjetas</p>
+    <p class="ver">🌐 v22 WEB · Acierto de marcadores (70%) + goles afinados con forma real y Klement</p>
   </header>
 
   <!-- Barra de estado de la conexión en vivo -->
@@ -735,6 +739,7 @@ function lambdas(a,b,base){
   const e=Math.pow(10,(a.e-b.e)/2000); lA*=Math.sqrt(e); lB/=Math.sqrt(e);     // Elo internacional (eloratings.net)
   const q=1+0.06*Math.log(Math.max(.2,ra.mv/rb.mv)); lA*=q; lB/=q;             // valor de mercado (proxy de talento, peso ↑)
   const f=1+0.02*Math.log(Math.max(.3,b.r/a.r)); lA*=f; lB/=f;                 // ranking FIFA (secundario)
+  const kd=kRating(a)-kRating(b), kf=1+0.015*(kd/10); lA*=kf; lB/=kf;          // fuerza Klement (socioeconómica) como 2ª opinión
   if(HOSTS[a.n])lA*=1.12; if(HOSTS[b.n])lB*=1.12;                              // localía anfitrión
   // VARIANZA DEL FÚTBOL (Sumpter / Klement): incertidumbre estructural (el "peor" gana ~20-25%).
   // Regresión a la media del partido: base global + extra en partidos parejos.
@@ -1178,7 +1183,9 @@ async function fetchMatchStats(key,id){
       cor:num(A.wonCorners,B.wonCorners), sot:num(A.shotsOnTarget,B.shotsOnTarget), sh:num(A.totalShots,B.totalShots),
       yel:num(A.yellowCards,B.yellowCards), red:num(A.redCards,B.redCards),
       card:num(A.yellowCards,B.yellowCards)+num(A.redCards,B.redCards),
-      fouls:num(A.foulsCommitted,B.foulsCommitted), off:num(A.offsides,B.offsides), sav:num(A.saves,B.saves)
+      fouls:num(A.foulsCommitted,B.foulsCommitted), off:num(A.offsides,B.offsides), sav:num(A.saves,B.saves),
+      tA:{nm:(ts[0].team&&ts[0].team.displayName)||"",cor:A.wonCorners||0,sot:A.shotsOnTarget||0,card:(A.yellowCards||0)+(A.redCards||0)},
+      tB:{nm:(ts[1].team&&ts[1].team.displayName)||"",cor:B.wonCorners||0,sot:B.shotsOnTarget||0,card:(B.yellowCards||0)+(B.redCards||0)}
     };
     // tarjetas por jugador (de los eventos del partido, si están)
     const cardOf={}; (j.keyEvents||j.plays||[]).forEach(e=>{const ty=((e.type&&e.type.text)||e.text||"").toLowerCase();
@@ -1193,7 +1200,7 @@ async function fetchMatchStats(key,id){
   }catch(e){return false;}
 }
 /* ===== Autocalibración: el modelo aprende de córners/remates/tarjetas reales ===== */
-const CAL={cor:1,sot:1,card:1,n:0}; let BRKPICK={}; let QOVER=null;
+const CAL={cor:1,sot:1,card:1,n:0}; let BRKPICK={}; let QOVER=null; let TCAL={};
 function rawVol(a,b){
   const elA=1/(1+Math.pow(10,-(a.e-b.e)/400));
   const shA=Math.min(.75,Math.max(.25,(a.po/(a.po+b.po))*.5+elA*.5)), shB=1-shA;
@@ -1210,6 +1217,13 @@ function recalcCal(){
     cR+=st.cor;cP+=v.cor; sR+=st.sot;sP+=v.sot; kR+=st.card;kP+=v.card; n++; });
   const cl=(r,p)=>p>0?Math.min(1.6,Math.max(0.6,r/p)):1;
   CAL.cor=cl(cR,cP); CAL.sot=cl(sR,sP); CAL.card=cl(kR,kP); CAL.n=n;
+  // Autoajuste POR EQUIPO: córners/remates/tarjetas reales de cada selección vs su base
+  const TS={};
+  Object.keys(MSTATS).forEach(k=>["tA","tB"].forEach(s=>{const o=MSTATS[k][s]; if(!o||!o.nm)return; const t=teamByName(o.nm); if(!t)return;
+    const r=TS[t.n]||(TS[t.n]={cor:0,sot:0,card:0,pj:0}); r.cor+=o.cor;r.sot+=o.sot;r.card+=o.card;r.pj++; }));
+  TCAL={}; Object.keys(TS).forEach(nm=>{const r=TS[nm],t=T.find(x=>x.n===nm); if(!t||!r.pj)return;
+    const w=Math.min(.6,r.pj*0.30), f=(real,base)=>Math.min(1.7,Math.max(.5,(1-w)+w*(real/r.pj)/Math.max(.5,base)));
+    TCAL[nm]={cor:f(r.cor,t.co),sot:f(r.sot,t.st),card:f(r.card,t.ca),pj:r.pj}; });
 }
 /* Bracket editable: el usuario elige quién pasa (solo recalcula el cuadro) */
 function pickKey(a,b){ return a.n<b.n? a.n+"|"+b.n : b.n+"|"+a.n; }
@@ -1402,7 +1416,7 @@ function teamTourn(t){ return TOURN[t.n]||{pj:0,gf:0,gc:0}; }
 function effRates(t,base){
   const x=XG[t.n]||[t.gf,t.gc,100];
   if(base) return { xg:x[0], xga:x[1], mv:x[2], pj:0, w:0 };   // modo "al comienzo" (sin forma del Mundial)
-  const f=teamTourn(t), w=Math.min(.55,f.pj*0.18);   // regresión a la media + forma real
+  const f=teamTourn(t), w=Math.min(.62,f.pj*0.22);   // regresión a la media + forma real (más peso a lo jugado)
   return { xg: f.pj? x[0]*(1-w)+(f.gf/f.pj)*w : x[0],
            xga:f.pj? x[1]*(1-w)+(f.gc/f.pj)*w : x[1], mv:x[2], pj:f.pj, w };
 }
@@ -1441,10 +1455,11 @@ function simMatch(a,b,N=3000,base){
   const shA=Math.min(.75,Math.max(.25,(a.po/(a.po+b.po))*.5+elA*.5)), shB=1-shA;
   const dA=1.05;
   const L=lambdas(a,b,base), lamA=L[0], lamB=L[1], ra=L[2], rb=L[3];
-  const sotA=Math.max(1.2,a.st*(.7+shA*.6)*(rb.xga/dA))*CAL.sot, sotB=Math.max(1.2,b.st*(.7+shB*.6)*(ra.xga/dA))*CAL.sot;
-  const corA=Math.max(2,a.co*(.6+shA*.8))*CAL.cor, corB=Math.max(2,b.co*(.6+shB*.8))*CAL.cor;
+  const tcA=TCAL[a.n]||{cor:1,sot:1,card:1}, tcB=TCAL[b.n]||{cor:1,sot:1,card:1};   // autoajuste por equipo (datos reales del Mundial)
+  const sotA=Math.max(1.2,a.st*(.7+shA*.6)*(rb.xga/dA))*CAL.sot*tcA.sot, sotB=Math.max(1.2,b.st*(.7+shB*.6)*(ra.xga/dA))*CAL.sot*tcB.sot;
+  const corA=Math.max(2,a.co*(.6+shA*.8))*CAL.cor*tcA.cor, corB=Math.max(2,b.co*(.6+shB*.8))*CAL.cor*tcB.cor;
   const inten=1+.35*Math.exp(-Math.abs(a.e-b.e)/250);
-  const cardA=a.ca*inten*CAL.card, cardB=b.ca*inten*CAL.card;
+  const cardA=a.ca*inten*CAL.card*tcA.card, cardB=b.ca*inten*CAL.card*tcB.card;
   const penPA=.06+.05*shA, penPB=.06+.05*shB, redPm=.05*inten;
   const setA=Math.min(.34,Math.max(.12,.20+(a.co-5)/50)), setB=Math.min(.34,Math.max(.12,.20+(b.co-5)/50));
   const offMean=2.6+(lamA+lamB)*0.4;
@@ -1733,12 +1748,20 @@ function resultProbs(a,b,thr){
   for(const e of ex){ cum+=e.p; rows.push({s:e.s,p:e.p,cum}); if(cum>=thr||rows.length>=16)break; }
   return {rows,total:cum};
 }
-function r3Render(a,b){ const r=resultProbs(a,b,0.70), P=x=>Math.round(x*100)+"%";
-  return `<div class="r3rows">`+r.rows.map((s,i)=>`<div class="r3row ${s.cum>=0.70?'r3hit':''}"><span class="r3rank">${i+1}</span><span class="r3sc">${a.f} <b>${s.s}</b> ${b.f}</span><span class="r3p">${P(s.p)}</span><span class="r3cum">acum ${P(s.cum)}</span></div>`).join("")+`</div>`
-    +`<div class="r3comb">✅ Con estos <b>${r.rows.length}</b> marcadores cubres el <b>${P(r.total)}</b> de probabilidad del partido.</div>`;
+function r3Render(a,b,act){ const r=resultProbs(a,b,0.70), P=x=>Math.round(x*100)+"%";
+  const inList=act&&r.rows.some(x=>x.s===act);
+  const rows=r.rows.map((s,i)=>`<div class="r3row ${s.cum>=0.70?'r3hit':''} ${act&&s.s===act?'r3win':''}"><span class="r3rank">${act&&s.s===act?'✅':i+1}</span><span class="r3sc">${a.f} <b>${s.s}</b> ${b.f}</span><span class="r3p">${P(s.p)}</span><span class="r3cum">acum ${P(s.cum)}</span></div>`).join("");
+  let head="";
+  if(act) head = inList
+    ? `<div class="r3res ok">🎯 ¡ACERTADO! Salió <b>${act}</b> y estaba entre los marcadores que cubren el 70%.</div>`
+    : `<div class="r3res no">❌ Salió <b>${act}</b> · no estaba en la lista del 70% (era menos probable).</div>`;
+  return head+`<div class="r3rows">`+rows+`</div><div class="r3comb">Con estos <b>${r.rows.length}</b> marcadores cubres el <b>${P(r.total)}</b> de probabilidad.</div>`;
 }
 function r3Open(el,g,i){ if(!el.open)return; const teams=T.filter(t=>t.g===g),p=PAIRS[i];
-  el.querySelector(".r3body").innerHTML=r3Render(teams[p[0]],teams[p[1]]); }
+  const mw=document.getElementById(`mwrap-${g}-${i}`); let act=null;
+  if(mw&&mw.classList.contains("fin")){ const ga=document.getElementById(`${g}-${i}-a`).value, gb=document.getElementById(`${g}-${i}-b`).value;
+    if(ga!==""&&gb!=="") act=ga+"-"+gb; }
+  el.querySelector(".r3body").innerHTML=r3Render(teams[p[0]],teams[p[1]],act); }
 
 /* ===== Pestaña EN VIVO / HOY ===== */
 function buildLiveTab(){ buildLiveNow(); buildHoy(); buildBota(); }
